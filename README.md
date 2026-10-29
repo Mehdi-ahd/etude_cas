@@ -4,7 +4,7 @@
 
 Ce dépôt contient le rendu de l'étude de cas TMA « prise de rendez-vous au guichet » (ASIN, 2026).
 
-L'application est déjà en production. Le code source n'est pas fourni : le travail part des règles de gestion, des traces du support et de l'export `base_rendez_vous.sql`. 
+L'application est déjà en production. Le code source n'est pas fourni : le travail part des règles de gestion, des traces du support et de l'export `base_rendez_vous.sql`.
 
 ## 2. Stack et prérequis
 
@@ -158,15 +158,17 @@ Les dates sont exprimées en heure du Bénin (`Africa/Porto-Novo`, UTC+1), sans 
 
 ### 6.1 Synthèse
 
-| Ticket  | Qualification      | Règle de référence                                                 | Cause probable                                                                | Correction                                                 | Test |
-| ------- | ------------------ | --------------------------------------------------------------------- | ----------------------------------------------------------------------------- | ---------------------------------------------------------- | ---- |
-| TMA-101 | Anomalie           | Centre ouvert du lundi au vendredi                                    | Contrôle du week-end absent ou mal indexé                                   | Refuser samedi/dimanche avec `409`                       | T1   |
-| TMA-102 | Anomalie           | 3 usagers maximum par créneau ; annulé libère sa place             | Capacité probablement comptée par service, ou contrôle absent/non atomique | Compter le créneau global, tous services, hors `annule` | T2   |
-| TMA-103 | Anomalie           | NPI = exactement 10 chiffres                                          | Validation absente ou conversion `int()` non protégée → erreur 500       | Valider le NPI avant tout traitement, retour `400`       | T3   |
-| TMA-104 | Anomalie           | Annulation possible jusqu'à 24 h avant                               | Calcul sur `delta.days` ou seuil 48 h au lieu de la durée exacte           | Comparer la durée exacte, borne 24 h incluse              | T4   |
-| TMA-105 | Anomalie           | `confirme` → `honore`/`absent`/`annule`, statuts définitifs | Aucun contrôle de transition                                                 | Refuser si le statut courant n'est pas `confirme`        | T5   |
-| TMA-106 | Anomalie           | Tri décroissant, prochain rendez-vous en tête, 10 par page          | Pas de `ORDER BY`, ou pagination avant tri                                  | Trier `dateHeure DESC`, puis paginer                     | T6   |
-| TMA-107 | **Conforme** | Un seul rendez-vous à venir, tous services confondus                 | La règle est correctement appliquée                                         | Ne pas modifier ; test de non-régression                  | T7   |
+| Ticket  | Qualification      | Règle de référence                                                                                                                                          | Cause probable                                                                | Correction                                                 | Test |
+| ------- | ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- | ---------------------------------------------------------- | ---- |
+| TMA-101 | Anomalie           | Centre ouvert du lundi au vendredi                                                                                                                             | Contrôle du week-end absent ou mal indexé                                   | Refuser samedi/dimanche avec `409`                       | T1   |
+| TMA-102 | Anomalie           | Un créneau accueille au plus 3 usagers                                                                                                                        | Capacité probablement comptée par service, ou contrôle absent/non atomique | Compter le créneau global, tous services, hors `annule` | T2   |
+| TMA-103 | Anomalie           | Un NPI est composé d’exactement 10 chiffres                                                                                                                  | Validation absente ou conversion `int()` non protégée → erreur 500       | Valider le NPI avant tout traitement, retour `400`       | T3   |
+| TMA-104 | Anomalie           | L’usager peut annuler son rendez-vous jusqu’à 24 heures avant l’heure prévue.                                                                             | Calcul sur `delta.days` ou seuil 48 h au lieu de la durée exacte           | Comparer la durée exacte, borne 24 h incluse              | T4   |
+| TMA-105 | Anomalie           | Un rendez-vous « confirmé » (confirme) devient « honoré » (honore), « absent » (absent) ou « annulé » (annule). Ces trois statuts sont définitifs. | Aucun contrôle de transition                                                 | Refuser si le statut courant n'est pas `confirme`        | T5   |
+| TMA-106 | Anomalie           | Les rendez-vous d’un usager sont listés du plus récent au plus ancien, le prochain rendez-vous en tête, par pages de 10.                                   | Pas de `ORDER BY`, ou pagination avant tri                                  | Trier `dateHeure DESC`, puis paginer                     | T6   |
+| TMA-107 | **Conforme** | Un usager ne peut avoir qu’un seul rendez-vous à venir, tous services confondus.                                                                             | La règle est correctement appliquée                                         | Ne pas modifier ; test de non-régression                  | T7   |
+
+
 
 ### 6.2 TMA-101 — rendez-vous un samedi
 
