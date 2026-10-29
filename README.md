@@ -212,6 +212,8 @@ POST /api/rendez-vous
 | 681 | PERMIS |
 | 697 | PERMIS |
 
+La trace indique `service: CNI` pour la quatrième requête, tandis que l'export enregistre le rendez-vous 697 en PERMIS. Le point important est que la capacité doit être comptée globalement, quel que soit le service.
+
 Un contrôle par service ne verrait jamais 3 rendez-vous sur un même service (au plus 2 dans l'export) et laisserait donc passer le 4e. C'est la cause la plus probable. Une autre possibilité est l'absence de contrôle, ou un contrôle non atomique qui laisse deux requêtes simultanées dépasser la capacité. Les trois créneaux en dépassement de l'export ont d'ailleurs tous au plus 2 rendez-vous par service, ce qui est cohérent avec un comptage par service.
 
 **Correction.** Le module compte tous les rendez-vous du créneau dont le statut n'est pas `annule`, sans distinguer le service. Si le total est supérieur ou égal à 3, il renvoie `409` avec `Ce créneau est complet.` Un rendez-vous `annule` libère bien sa place.
