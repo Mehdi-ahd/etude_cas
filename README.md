@@ -4,16 +4,7 @@
 
 Ce dépôt contient le rendu de l'étude de cas TMA « prise de rendez-vous au guichet » (ASIN, 2026).
 
-L'application est déjà en production. Le code source n'est pas fourni : le travail part des règles de gestion, des traces du support et de l'export `base_rendez_vous.sql`. La démarche est celle d'un développeur en tierce maintenance applicative :
-
-1. qualifier chaque ticket : anomalie ou comportement conforme ;
-2. diagnostiquer la cause probable à partir de la trace ;
-3. corriger les règles dans un module indépendant de la base et du framework ;
-4. prouver les corrections par des tests automatisés ;
-5. mesurer l'impact des anomalies sur les données existantes avec des requêtes SQL ;
-6. rendre compte dans ce README.
-
-Le dépôt ne contient volontairement ni API HTTP, ni interface graphique : le sujet demande un module de règles métier, des tests, `requetes.sql` et un README.
+L'application est déjà en production. Le code source n'est pas fourni : le travail part des règles de gestion, des traces du support et de l'export `base_rendez_vous.sql`. 
 
 ## 2. Stack et prérequis
 
@@ -167,15 +158,15 @@ Les dates sont exprimées en heure du Bénin (`Africa/Porto-Novo`, UTC+1), sans 
 
 ### 6.1 Synthèse
 
-| Ticket | Qualification | Règle de référence | Cause probable | Correction | Test |
-|---|---|---|---|---|---|
-| TMA-101 | Anomalie | Centre ouvert du lundi au vendredi | Contrôle du week-end absent ou mal indexé | Refuser samedi/dimanche avec `409` | T1 |
-| TMA-102 | Anomalie | 3 usagers maximum par créneau ; annulé libère sa place | Capacité probablement comptée par service, ou contrôle absent/non atomique | Compter le créneau global, tous services, hors `annule` | T2 |
-| TMA-103 | Anomalie | NPI = exactement 10 chiffres | Validation absente ou conversion `int()` non protégée → erreur 500 | Valider le NPI avant tout traitement, retour `400` | T3 |
-| TMA-104 | Anomalie | Annulation possible jusqu'à 24 h avant | Calcul sur `delta.days` ou seuil 48 h au lieu de la durée exacte | Comparer la durée exacte, borne 24 h incluse | T4 |
-| TMA-105 | Anomalie | `confirme` → `honore`/`absent`/`annule`, statuts définitifs | Aucun contrôle de transition | Refuser si le statut courant n'est pas `confirme` | T5 |
-| TMA-106 | Anomalie | Tri décroissant, prochain rendez-vous en tête, 10 par page | Pas de `ORDER BY`, ou pagination avant tri | Trier `dateHeure DESC`, puis paginer | T6 |
-| TMA-107 | **Conforme** | Un seul rendez-vous à venir, tous services confondus | La règle est correctement appliquée | Ne pas modifier ; test de non-régression | T7 |
+| Ticket  | Qualification      | Règle de référence                                                 | Cause probable                                                                | Correction                                                 | Test |
+| ------- | ------------------ | --------------------------------------------------------------------- | ----------------------------------------------------------------------------- | ---------------------------------------------------------- | ---- |
+| TMA-101 | Anomalie           | Centre ouvert du lundi au vendredi                                    | Contrôle du week-end absent ou mal indexé                                   | Refuser samedi/dimanche avec `409`                       | T1   |
+| TMA-102 | Anomalie           | 3 usagers maximum par créneau ; annulé libère sa place             | Capacité probablement comptée par service, ou contrôle absent/non atomique | Compter le créneau global, tous services, hors `annule` | T2   |
+| TMA-103 | Anomalie           | NPI = exactement 10 chiffres                                          | Validation absente ou conversion `int()` non protégée → erreur 500       | Valider le NPI avant tout traitement, retour `400`       | T3   |
+| TMA-104 | Anomalie           | Annulation possible jusqu'à 24 h avant                               | Calcul sur `delta.days` ou seuil 48 h au lieu de la durée exacte           | Comparer la durée exacte, borne 24 h incluse              | T4   |
+| TMA-105 | Anomalie           | `confirme` → `honore`/`absent`/`annule`, statuts définitifs | Aucun contrôle de transition                                                 | Refuser si le statut courant n'est pas `confirme`        | T5   |
+| TMA-106 | Anomalie           | Tri décroissant, prochain rendez-vous en tête, 10 par page          | Pas de `ORDER BY`, ou pagination avant tri                                  | Trier `dateHeure DESC`, puis paginer                     | T6   |
+| TMA-107 | **Conforme** | Un seul rendez-vous à venir, tous services confondus                 | La règle est correctement appliquée                                         | Ne pas modifier ; test de non-régression                  | T7   |
 
 ### 6.2 TMA-101 — rendez-vous un samedi
 
@@ -205,12 +196,12 @@ POST /api/rendez-vous
 
 **Diagnostic.** La capacité est de 3 usagers pour le créneau complet, pas 3 par service. Or les quatre rendez-vous sont répartis ainsi :
 
-| Rendez-vous | Service |
-|---|---|
-| 632 | PASSEPORT |
-| 644 | CNI |
-| 681 | PERMIS |
-| 697 | PERMIS |
+| Rendez-vous | Service   |
+| ----------- | --------- |
+| 632         | PASSEPORT |
+| 644         | CNI       |
+| 681         | PERMIS    |
+| 697         | PERMIS    |
 
 La trace indique `service: CNI` pour la quatrième requête, tandis que l'export enregistre le rendez-vous 697 en PERMIS. Le point important est que la capacité doit être comptée globalement, quel que soit le service.
 
@@ -339,15 +330,15 @@ POST /api/rendez-vous
 
 ### 7.1 Les sept tickets
 
-| Test | Heure courante | Scénario | Attendu |
-|---|---|---|---|
-| T1 | 01/11/2026 12:00 | RDV samedi 14/11/2026 10:00 | `409` centre fermé |
-| T2 | 01/11/2026 12:00 | 3 rendez-vous actifs le 10/11 à 09:00, puis un 4e | `409` créneau complet |
-| T3 | 01/11/2026 12:00 | NPI `06142A3647` | `400` NPI invalide, pas `500` |
-| T4 | 17/11/2026 18:00 | Annulation d'un RDV le 19/11 à 10:00 | `200`, 40 h restantes |
-| T5 | — | `annule` → `honore` | `409` déjà clôturé |
-| T6 | — | 13 rendez-vous, page 1 | 10 éléments, `02/12/2026` en tête, total 13 |
-| T7 | 01/11/2026 12:00 | RDV futur le 26/11, demande le 27/11 autre service | `409` déjà un rendez-vous à venir |
+| Test | Heure courante   | Scénario                                          | Attendu                                          |
+| ---- | ---------------- | -------------------------------------------------- | ------------------------------------------------ |
+| T1   | 01/11/2026 12:00 | RDV samedi 14/11/2026 10:00                        | `409` centre fermé                            |
+| T2   | 01/11/2026 12:00 | 3 rendez-vous actifs le 10/11 à 09:00, puis un 4e | `409` créneau complet                         |
+| T3   | 01/11/2026 12:00 | NPI `06142A3647`                                 | `400` NPI invalide, pas `500`                |
+| T4   | 17/11/2026 18:00 | Annulation d'un RDV le 19/11 à 10:00              | `200`, 40 h restantes                          |
+| T5   | —               | `annule` → `honore`                           | `409` déjà clôturé                         |
+| T6   | —               | 13 rendez-vous, page 1                             | 10 éléments, `02/12/2026` en tête, total 13 |
+| T7   | 01/11/2026 12:00 | RDV futur le 26/11, demande le 27/11 autre service | `409` déjà un rendez-vous à venir           |
 
 Les scénarios T1 à T6 reproduisent les cas signalés et vérifient les comportements corrigés. Ils auraient échoué avec les comportements décrits dans les traces. T7 est un test de non-régression qui vérifie le maintien d'un comportement conforme.
 
@@ -396,12 +387,12 @@ ORDER BY date_heure;
 
 Résultat : **5 lignes**.
 
-| id | npi | service | date_heure |
-|---|---|---|---|
+| id  | npi        | service   | date_heure       |
+| --- | ---------- | --------- | ---------------- |
 | 680 | 0669147625 | PASSEPORT | 2026-11-21 08:30 |
-| 730 | 0679617916 | CNI | 2026-11-28 09:00 |
-| 834 | 0610588823 | CNI | 2026-12-05 10:00 |
-| 857 | 0671987446 | PERMIS | 2026-12-05 10:00 |
+| 730 | 0679617916 | CNI       | 2026-11-28 09:00 |
+| 834 | 0610588823 | CNI       | 2026-12-05 10:00 |
+| 857 | 0671987446 | PERMIS    | 2026-12-05 10:00 |
 | 874 | 0648953073 | PASSEPORT | 2026-12-12 11:00 |
 
 Le rendez-vous 742 du ticket TMA-101 n'apparaît pas : il est daté du 14/11/2026, donc déjà passé à la date de l'export. La requête porte bien sur les rendez-vous **à venir**. Au total, l'export contient 8 rendez-vous le week-end, tous `confirme` : 5 futurs (ci-dessus) et 3 passés (475, 742, 715).
@@ -419,11 +410,11 @@ ORDER BY date_heure;
 
 Résultat : **3 lignes**.
 
-| date_heure | nb_rendez_vous |
-|---|---|
-| 2026-10-22 10:30 | 4 |
-| 2026-11-10 09:00 | 4 |
-| 2026-11-24 14:00 | 4 |
+| date_heure       | nb_rendez_vous |
+| ---------------- | -------------- |
+| 2026-10-22 10:30 | 4              |
+| 2026-11-10 09:00 | 4              |
+| 2026-11-24 14:00 | 4              |
 
 Le créneau du 24/11/2026 à 14:00 est futur : c'est le seul qui permet encore d'agir avant la date. Les deux autres sont passés. Le regroupement porte sur `date_heure` seule : si on groupait aussi par service, le créneau du 10/11 ne serait pas détecté, car les quatre rendez-vous sont répartis sur plusieurs services.
 
@@ -449,23 +440,23 @@ ORDER BY h.modifie_le;
 
 Résultat : **4 lignes**.
 
-| historique | rendez_vous | transition | modifié le | agent | npi | date du RDV | statut actuel |
-|---|---|---|---|---|---|---|---|
-| 346 | 208 | annule → honore | 2026-10-07 10:20 | AG-01 | 0384914669 | 2026-10-07 10:00 | honore |
-| 430 | 231 | annule → honore | 2026-10-15 10:26 | AG-02 | 0370202195 | 2026-10-15 10:00 | honore |
-| 547 | 262 | annule → absent | 2026-10-29 10:21 | AG-03 | 0317656053 | 2026-10-29 10:00 | absent |
-| 676 | 292 | annule → honore | 2026-11-12 10:13 | AG-04 | 0330677555 | 2026-11-12 10:00 | honore |
+| historique | rendez_vous | transition       | modifié le      | agent | npi        | date du RDV      | statut actuel |
+| ---------- | ----------- | ---------------- | ---------------- | ----- | ---------- | ---------------- | ------------- |
+| 346        | 208         | annule → honore | 2026-10-07 10:20 | AG-01 | 0384914669 | 2026-10-07 10:00 | honore        |
+| 430        | 231         | annule → honore | 2026-10-15 10:26 | AG-02 | 0370202195 | 2026-10-15 10:00 | honore        |
+| 547        | 262         | annule → absent | 2026-10-29 10:21 | AG-03 | 0317656053 | 2026-10-29 10:00 | absent        |
+| 676        | 292         | annule → honore | 2026-11-12 10:13 | AG-04 | 0330677555 | 2026-11-12 10:00 | honore        |
 
 Le rendez-vous 292 est celui du ticket TMA-105. Les trois autres transitions n'étaient pas signalées.
 
 ### 8.4 Requêtes bonus
 
-| Requête | Objectif | Résultat |
-|---|---|---|
-| Bonus 1 | Rendez-vous futurs confirmés hors grille | 1 ligne : id 842, 2026-12-08 16:00 |
-| Bonus 2 | NPI qui ne font pas exactement 10 chiffres | 2 lignes : id 459 (`01234567890`), id 642 (`061425364711`) |
-| Bonus 3 | Doublons non annulés même NPI / même créneau | 1 ligne : `0536455681`, 2026-09-01 09:30, 2 rendez-vous |
-| Bonus 4 | Rendez-vous passés encore `confirme` | 3 lignes : 475, 742, 715, tous des week-ends |
+| Requête | Objectif                                         | Résultat                                                      |
+| -------- | ------------------------------------------------ | -------------------------------------------------------------- |
+| Bonus 1  | Rendez-vous futurs confirmés hors grille        | 1 ligne : id 842, 2026-12-08 16:00                             |
+| Bonus 2  | NPI qui ne font pas exactement 10 chiffres       | 2 lignes : id 459 (`01234567890`), id 642 (`061425364711`) |
+| Bonus 3  | Doublons non annulés même NPI / même créneau | 1 ligne : `0536455681`, 2026-09-01 09:30, 2 rendez-vous      |
+| Bonus 4  | Rendez-vous passés encore `confirme`          | 3 lignes : 475, 742, 715, tous des week-ends                   |
 
 Ces anomalies sont expliquées et couvertes par le module :
 
