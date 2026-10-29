@@ -38,7 +38,8 @@ ORDER BY date_heure;
 
 
 -- =====================================================================
--- REQUETE 3 - Rendez-vous passes du statut « annule » a un autre statut
+-- REQUETE 3 - Transitions de statut depuis « annule » vers un autre statut
+-- Porte sur tout l'historique, sans filtre de date.
 -- Attendu : 4 lignes (rv 208, 231, 262, 292).
 -- =====================================================================
 SELECT h.id AS historique_id,
@@ -55,7 +56,6 @@ FROM historique_statuts h
 JOIN rendez_vous r ON r.id = h.rendez_vous_id
 WHERE h.ancien_statut = 'annule'
   AND h.nouveau_statut <> 'annule'
-  AND r.date_heure < '2026-11-20 18:00:00'
 ORDER BY h.modifie_le;
 
 
@@ -92,7 +92,7 @@ ORDER BY id;
 
 
 -- =====================================================================
--- BONUS 3 - Doublons de rendez-vous actifs pour un meme NPI sur un meme creneau.
+-- BONUS 3 - Doublons de rendez-vous non annules pour un meme NPI sur un meme creneau.
 -- Violation historique de la regle « un seul rendez-vous a venir ».
 -- Attendu : 1 ligne (NPI 0536455681, 01/09/2026 09:30, 2 rendez-vous).
 -- =====================================================================

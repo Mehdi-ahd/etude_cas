@@ -94,7 +94,7 @@ asin-etude-de-cas/
 
 ## 5. Règles de gestion implémentées
 
-Le module `Asin\Tma\ReglesRendezVous` reçoit toutes les données dont il a besoin et ne fait aucune I/O. L'heure courante est toujours passée en paramètre pour rendre les tests déterministes.
+Le module `Asin\Tma\ReglesRendezVous` reçoit toutes les données dont il a besoin et ne fait aucune I/O. Les méthodes dépendant de l'heure courante la reçoivent en paramètre explicite, pour rendre les tests déterministes.
 
 ### 5.1 Prise de rendez-vous
 
@@ -222,7 +222,7 @@ Un contrôle par service ne verrait jamais 3 rendez-vous sur un même service (a
 
 **Impact.** La requête 2 trouve 3 créneaux en dépassement : 22/10/2026 10:30, 10/11/2026 09:00 et 24/11/2026 14:00. Ce dernier est futur : il faut prévenir les usagers ou déplacer un rendez-vous.
 
-**Limite.** Le contrôle du module n'est pas atomique. En production, il faut une transaction et une contrainte base (ou un verrou) pour empêcher deux réservations simultanées de dépasser la capacité.
+**Limite.** Le contrôle du module n'est pas atomique. En production, la vérification de la capacité et l'enregistrement du rendez-vous doivent être réalisés dans un mécanisme transactionnel protégeant le créneau contre les réservations concurrentes, par exemple au moyen d'un verrouillage adapté. La stratégie retenue dépendra du modèle de données et du SGBD.
 
 ### 6.4 TMA-103 — NPI contenant une lettre
 
@@ -287,7 +287,7 @@ PATCH /api/rendez-vous/292/statut  {"statut":"honore"}
 
 **Correction.** Le module vérifie d'abord que le statut demandé est `honore` ou `absent` (`400` sinon), puis que le statut courant est `confirme` (`409` avec `Ce rendez-vous est déjà clôturé.` sinon). Aucune réouverture n'est possible.
 
-**Test.** T5 rejoue `annule -> honore` et attend `409`. Des tests complémentaires couvrent `honore -> absent`, `absent -> honore` et une demande de statut `confirme`.
+**Test.** T5 rejoue `annule -> honore` et attend `409`. Des tests complémentaires couvrent les transitions depuis `honore`, `absent` et `annule`, ainsi qu'une demande de statut `confirme`.
 
 **Impact.** La requête 3 trouve 4 transitions `annule` vers un autre statut : les rendez-vous 208, 231, 262 et 292. Le 292 est celui du ticket ; les trois autres sont des anomalies non signalées.
 
@@ -333,7 +333,7 @@ POST /api/rendez-vous
 
 **Test.** T7 est un test de non-régression : il rejoue la demande et attend `409` avec `Vous avez déjà un rendez-vous à venir.` Il échouerait si quelqu'un supprimait ou affaiblissait la règle.
 
-**Anomalie historique bonus.** L'export contient un doublon actif pour le NPI `0536455681` sur le créneau du 01/09/2026 à 09:30 : deux rendez-vous, l'un PERMIS, l'autre PASSEPORT, tous deux `honore`. Le second a été créé le 30/08 alors que le premier existait déjà : la règle n'a donc pas toujours été appliquée. Le module refuserait ce second rendez-vous. La requête bonus 3 liste ce doublon.
+**Anomalie historique bonus.** L'export contient un doublon de rendez-vous pour un même NPI et un même créneau : pour le NPI `0536455681`, sur le créneau du 01/09/2026 à 09:30, deux rendez-vous, l'un PERMIS, l'autre PASSEPORT, tous deux `honore`. Le second a été créé le 30/08 alors que le premier existait déjà : la règle n'a donc pas toujours été appliquée. Le module refuserait ce second rendez-vous. La requête bonus 3 liste ce doublon.
 
 ## 7. Tests automatisés
 
@@ -349,7 +349,7 @@ POST /api/rendez-vous
 | T6 | — | 13 rendez-vous, page 1 | 10 éléments, `02/12/2026` en tête, total 13 |
 | T7 | 01/11/2026 12:00 | RDV futur le 26/11, demande le 27/11 autre service | `409` déjà un rendez-vous à venir |
 
-Chaque test vérifie le code et le message exact. Les tests T1 à T6 échouent avec le comportement décrit dans les traces ; T7 est un test de non-régression.
+Les scénarios T1 à T6 reproduisent les cas signalés et vérifient les comportements corrigés. Ils auraient échoué avec les comportements décrits dans les traces. T7 est un test de non-régression qui vérifie le maintien d'un comportement conforme.
 
 ### 7.2 Cas limites
 
@@ -379,7 +379,7 @@ OK (25 tests, 143 assertions)
 
 ## 8. Impact en base
 
-L'export est daté du **vendredi 20/11/2026 à 18:00** (heure du Bénin). Toutes les requêtes utilisent cette référence.
+L'export est daté du **vendredi 20/11/2026 à 18:00** (heure du Bénin). Les requêtes qui distinguent le futur du passé (requêtes 1, bonus 1 et bonus 4) utilisent cette référence. La requête 2 et les requêtes bonus 2 et 3 portent sur l'export complet, et la requête 3 sur tout l'historique.
 
 Chiffres clés de l'export : **889 rendez-vous**, **757 lignes d'historique**, **133 rendez-vous futurs** (tous `confirme`), **8 rendez-vous le week-end** et **3 créneaux en dépassement de capacité**.
 
@@ -427,7 +427,7 @@ Résultat : **3 lignes**.
 
 Le créneau du 24/11/2026 à 14:00 est futur : c'est le seul qui permet encore d'agir avant la date. Les deux autres sont passés. Le regroupement porte sur `date_heure` seule : si on groupait aussi par service, le créneau du 10/11 ne serait pas détecté, car les quatre rendez-vous sont répartis sur plusieurs services.
 
-### 8.3 Requête 3 — rendez-vous passés de `annule` à un autre statut
+### 8.3 Requête 3 — transitions de statut depuis `annule` vers un autre statut
 
 ```sql
 SELECT h.id AS historique_id,
@@ -444,7 +444,6 @@ FROM historique_statuts h
 JOIN rendez_vous r ON r.id = h.rendez_vous_id
 WHERE h.ancien_statut = 'annule'
   AND h.nouveau_statut <> 'annule'
-  AND r.date_heure < '2026-11-20 18:00:00'
 ORDER BY h.modifie_le;
 ```
 
@@ -465,7 +464,7 @@ Le rendez-vous 292 est celui du ticket TMA-105. Les trois autres transitions n'�
 |---|---|---|
 | Bonus 1 | Rendez-vous futurs confirmés hors grille | 1 ligne : id 842, 2026-12-08 16:00 |
 | Bonus 2 | NPI qui ne font pas exactement 10 chiffres | 2 lignes : id 459 (`01234567890`), id 642 (`061425364711`) |
-| Bonus 3 | Doublons actifs même NPI / même créneau | 1 ligne : `0536455681`, 2026-09-01 09:30, 2 rendez-vous |
+| Bonus 3 | Doublons non annulés même NPI / même créneau | 1 ligne : `0536455681`, 2026-09-01 09:30, 2 rendez-vous |
 | Bonus 4 | Rendez-vous passés encore `confirme` | 3 lignes : 475, 742, 715, tous des week-ends |
 
 Ces anomalies sont expliquées et couvertes par le module :
@@ -479,7 +478,7 @@ Ces anomalies sont expliquées et couvertes par le module :
 
 - **Pas de couche HTTP ni d'interface.** Le module renvoie un `Resultat` avec un code et un message ; c'est à l'API de les transmettre. Le sujet ne demande pas de routes.
 - **Pas de persistance.** Le module ne crée pas d'identifiant et n'écrit pas l'historique. L'appelant doit enregistrer le rendez-vous et la ligne `historique_statuts` avec `modifie_par`.
-- **Contrôles non atomiques.** La capacité et l'unicité du rendez-vous à venir sont vérifiées en mémoire. En production, il faut une transaction et une contrainte base pour éviter les courses entre deux requêtes simultanées.
+- **Contrôles non atomiques.** La capacité et l'unicité du rendez-vous à venir sont vérifiées en mémoire. En production, la vérification et l'enregistrement doivent être réalisés dans un mécanisme transactionnel protégeant le créneau contre les réservations concurrentes, par exemple au moyen d'un verrouillage adapté ; la stratégie dépend du modèle de données et du SGBD.
 - **Pas de gestion des jours fériés.** La règle fournie ne parle que des samedis et dimanches. Un jour férié n'est pas traité.
 - **Heure du Bénin uniquement.** Les dates sont naïves et interprétées en `Africa/Porto-Novo` (UTC+1, sans changement d'heure). Aucune conversion de fuseau n'est faite.
 - **Dialecte SQL.** Les requêtes sont écrites pour SQLite, avec les variantes PostgreSQL/MySQL en commentaire. L'export est compatible avec les trois, mais les fonctions de date diffèrent.
@@ -489,13 +488,17 @@ Ces anomalies sont expliquées et couvertes par le module :
 
 ## 10. Démarche et historique Git
 
-Le dépôt a été construit par étapes, avec un commit après chaque modification majeure :
+Le dépôt a été construit par étapes, avec un commit après chaque modification majeure. L'historique publié comporte les commits suivants :
 
-1. `chore: initialisation du projet PHP et de l'export SQL`
-2. `feat: module de regles metier (prise, annulation, statut, pagination)`
-3. `test: scenarios TMA-101 a TMA-107 et cas limites`
-4. `feat(sql): requetes d'impact et script d'execution SQLite`
-5. `docs: compte rendu README et resultats`
+1. `f385dd5` — `chore: initialisation du projet PHP et de l'export SQL`
+2. `1c3e319` — `feat: module de regles metier (prise, annulation, statut, pagination)`
+3. `87c5603` — `test: scenarios TMA-101 a TMA-107 et cas limites`
+4. `378a650` — `feat(sql): requetes d'impact et script d'execution SQLite`
+5. `e96db79` — `docs: compte rendu README et resultats`
+6. `ba6a522` — `docs: precision du diagnostic TMA-102`
+7. `5d399c2` — `docs: note sur la trace TMA-102 et le service du 4e rendez-vous`
+
+Les corrections de rédaction et le retrait du filtre de la requête 3 font l'objet d'un commit de suivi.
 
 Pour rejouer le travail :
 
