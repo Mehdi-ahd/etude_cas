@@ -1,0 +1,28 @@
+{
+    "name": "mehdi-ahd/etude-cas-tma",
+    "description": "Etude de cas TMA - module de regles metier pour la prise de rendez-vous au guichet",
+    "type": "project",
+    "license": "proprietary",
+    "require": {
+        "php": ">=8.2"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^11.5"
+    },
+    "autoload": {
+        "psr-4": {
+            "Asin\\Tma\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Asin\\Tma\\Tests\\": "tests/"
+        }
+    },
+    "scripts": {
+        "test": "phpunit"
+    },
+    "config": {
+        "sort-packages": true
+    }
+}
